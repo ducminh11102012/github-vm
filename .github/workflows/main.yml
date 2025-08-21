@@ -1,24 +1,41 @@
-name: MacRDP
-on: 
+name: macOS VNC Setup
+
+on:
   workflow_dispatch:
+
 jobs:
-  build:
-    name: MacRDP
+  setup-vnc:
     runs-on: macos-13
-    
-    steps:                 
-    - name: Enabling Remote Access
-      env:
-        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-      run: |
-          curl -s -o start.sh -L "https://raw.githubusercontent.com/JohnnyNetsec/github-vm/main/mac/start.sh"
-          chmod +x start.sh
-          bash start.sh "$NGROK_AUTH_TOKEN"
-          
-    - name: Log In Details To VNC Server
-      run: |
-         chmod +x login.sh
-         bash login.sh
-         
-    - name: MacOS System running...
-      uses: mxschmitt/action-tmate@v2
+    steps:
+      - name: Install ngrok
+        run: |
+          brew install --cask ngrok
+
+      - name: Fake MDM plist
+        run: |
+          sudo defaults write /Library/Preferences/com.apple.RemoteManagement FakeMDM -bool true
+          sudo defaults write /Library/Preferences/com.apple.ScreenSharing FakeMDM -bool true
+          sudo killall cfprefsd
+
+      - name: Enable VNC
+        run: |
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -activate -configure -access -on -restart -agent
+          # Set VNC password
+          echo "vncpassword" | sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -configure -clientopts -setvnclegacy -vnclegacy yes \
+            -clientopts -setvncpw -vncpwfile -
+
+      - name: Start ngrok TCP
+        run: |
+          ngrok authtoken ${{ secrets.NGROK_TOKEN }}
+          ngrok tcp 5900 --log=stdout > ngrok.log &
+          sleep 5
+          cat ngrok.log | grep -o "tcp://[0-9a-zA-Z:.]*" > ngrok_address.txt
+
+      - name: Output VNC info
+        run: |
+          echo "VNC Address:"
+          cat ngrok_address.txt
+          echo "User: $(whoami)"
+          echo "Password: vncpassword"
