@@ -22,13 +22,21 @@ on:
 
 jobs:
   create-and-expose:
-    runs-on: macos-26-intel
+    runs-on: [self-hosted, macOS, X64]
     env:
       VM_NAME: ${{ inputs.vm_name }}
       INSTALLER_APP: "/Applications/Install macOS Tahoe.app"
-      MAC_HOST_PW: "MatKhauHostCuaBan123!"
+      MAC_HOST_PW: "MatKhauMoiCuaBan123!"
       VNC_PW: "MatKhauVNCCuaBan123!"
     steps:
+      - name: 0. Reset mật khẩu host + tạo lại keychain để khớp mật khẩu mới
+        run: |
+          sudo sysadminctl -resetPasswordFor "$(whoami)" -newPassword "$MAC_HOST_PW"
+          rm -f ~/Library/Keychains/login.keychain-db
+          security create-keychain -p "$MAC_HOST_PW" login.keychain-db
+          security default-keychain -s login.keychain-db
+          security unlock-keychain -p "$MAC_HOST_PW" login.keychain-db
+
       - name: 1. Cài Anka Virtualization CLI (idempotent, dùng Anka Develop free)
         run: |
           if ! command -v anka >/dev/null 2>&1; then
@@ -38,20 +46,14 @@ jobs:
           fi
           anka version
 
-      - name: 2. Mở khóa keychain trên host
-        run: |
-          sysadminctl -oldPassword "$MAC_HOST_PW" -newPassword "$MAC_HOST_PW"
-          security unlock-keychain -p "$MAC_HOST_PW" login.keychain-db
-          security login-keychain -s login.keychain
-
-      - name: 3. Tải bộ cài macOS Tahoe full installer (nếu chưa có)
+      - name: 2. Tải bộ cài macOS Tahoe full installer (nếu chưa có)
         run: |
           if [ ! -d "$INSTALLER_APP" ]; then
             sudo softwareupdate --fetch-full-installer --full-installer-version 26.0
           fi
           ls -la "$INSTALLER_APP"
 
-      - name: 4. Tạo VM Tahoe (bỏ qua nếu VM đã tồn tại)
+      - name: 3. Tạo VM Tahoe (bỏ qua nếu VM đã tồn tại)
         run: |
           if ! anka show "$VM_NAME" >/dev/null 2>&1; then
             anka create --app "$INSTALLER_APP" \
@@ -63,10 +65,10 @@ jobs:
             echo "VM $VM_NAME đã tồn tại, bỏ qua bước tạo."
           fi
 
-      - name: 5. Khởi động VM
+      - name: 4. Khởi động VM
         run: anka start "$VM_NAME"
 
-      - name: 6. Chờ VM lấy IP
+      - name: 5. Chờ VM lấy IP
         id: vm_net
         run: |
           IP=""
@@ -83,7 +85,7 @@ jobs:
             exit 1
           fi
 
-      - name: 7. Bật legacy VNC password cho VM
+      - name: 6. Bật legacy VNC password cho VM
         run: |
           anka run "$VM_NAME" sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
@@ -91,7 +93,7 @@ jobs:
             -clientopts -setvncpw -vncpw "$VNC_PW" \
             -restart -agent -privs -all
 
-      - name: 8. Cài bore CLI (jkuri/bore) từ prebuilt binary
+      - name: 7. Cài bore CLI (jkuri/bore) từ prebuilt binary
         run: |
           if ! command -v bore >/dev/null 2>&1; then
             curl -L -o /tmp/bore https://github.com/jkuri/bore/releases/download/v0.5.0/bore_darwin_amd64
@@ -100,7 +102,7 @@ jobs:
             sudo mv /tmp/bore /usr/local/bin/bore
           fi
 
-      - name: 9. Forward cổng VNC (5900) của VM qua bore.digital
+      - name: 8. Forward cổng VNC (5900) của VM qua bore.digital
         run: |
           nohup bore -s bore.digital -p 2200 \
             -ls "${{ steps.vm_net.outputs.vm_ip }}" -lp 5900 \
@@ -110,7 +112,7 @@ jobs:
           cat bore.log
           grep "Direct TCP" bore.log >> "$GITHUB_STEP_SUMMARY" || true
 
-      - name: 10. In thông tin kết nối
+      - name: 9. In thông tin kết nối
         run: |
           echo "VM IP nội bộ: ${{ steps.vm_net.outputs.vm_ip }}"
           echo "Mật khẩu VNC: $VNC_PW"
