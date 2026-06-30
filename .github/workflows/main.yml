@@ -25,7 +25,7 @@ jobs:
     runs-on: macos-26-intel
     env:
       VM_NAME: ${{ inputs.vm_name }}
-      INSTALLER_APP: "/Applications/Install macOS Tahoe.app"
+      INSTALLER_APP: "/Applications/Install macOS Sequoia.app"
       MAC_HOST_PW: "MatKhauMoiCuaBan123!"
       VNC_PW: "MatKhauVNCCuaBan123!"
     steps:
