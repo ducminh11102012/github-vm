@@ -45,6 +45,7 @@ jobs:
             sudo installer -pkg "./$FULL_FILE_NAME" -tgt /
           fi
           anka version
+          sudo anka license accept-eula
 
       - name: 2. Tải bộ cài macOS Tahoe full installer (nếu chưa có)
         run: |
