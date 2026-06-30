@@ -22,7 +22,7 @@ on:
 
 jobs:
   create-and-expose:
-    runs-on: [self-hosted, macOS, X64]
+    runs-on: macos-26-intel
     env:
       VM_NAME: ${{ inputs.vm_name }}
       INSTALLER_APP: "/Applications/Install macOS Tahoe.app"
