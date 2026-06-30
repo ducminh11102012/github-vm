@@ -49,7 +49,7 @@ jobs:
       - name: 2. Tải bộ cài macOS Tahoe full installer (nếu chưa có)
         run: |
           if [ ! -d "$INSTALLER_APP" ]; then
-            sudo softwareupdate --fetch-full-installer --full-installer-version 26.0
+            sudo softwareupdate --fetch-full-installer --full-installer-version 26.5.1
           fi
           ls -la "$INSTALLER_APP"
 
