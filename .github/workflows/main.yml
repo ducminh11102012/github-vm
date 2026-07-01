@@ -22,7 +22,7 @@ on:
 
 jobs:
   create-and-expose:
-    runs-on: macos-26-intel
+    runs-on: getmac
     env:
       VM_NAME: ${{ inputs.vm_name }}
       INSTALLER_APP: "/Applications/Install macOS Sequoia.app"
