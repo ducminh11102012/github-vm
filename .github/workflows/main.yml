@@ -1,119 +1,17 @@
-name: Anka macOS Tahoe VM - Tạo và Expose qua bore.digital
+name: macOS SSHX
 
 on:
   workflow_dispatch:
-    inputs:
-      vm_name:
-        description: "Tên VM Anka"
-        required: false
-        default: "tahoe-vm"
-      cpu_count:
-        description: "Số vCPU"
-        required: false
-        default: "4"
-      ram_size:
-        description: "RAM (vd: 8G)"
-        required: false
-        default: "8G"
-      disk_size:
-        description: "Dung lượng đĩa (vd: 80G)"
-        required: false
-        default: "80G"
 
 jobs:
-  create-and-expose:
-    runs-on: getmac
-    env:
-      VM_NAME: ${{ inputs.vm_name }}
-      INSTALLER_APP: "/Applications/Install macOS Sequoia.app"
-      MAC_HOST_PW: "MatKhauMoiCuaBan123!"
-      VNC_PW: "MatKhauVNCCuaBan123!"
+  sshx:
+    runs-on: macos-26
+
     steps:
-      - name: 0. Reset mật khẩu host + tạo lại keychain để khớp mật khẩu mới
+      - name: Install sshx
         run: |
-          sudo sysadminctl -resetPasswordFor "$(whoami)" -newPassword "$MAC_HOST_PW"
-          rm -f ~/Library/Keychains/login.keychain-db
-          security create-keychain -p "$MAC_HOST_PW" login.keychain-db
-          security default-keychain -s login.keychain-db
-          security unlock-keychain -p "$MAC_HOST_PW" login.keychain-db
+          curl -sSf https://sshx.io/get | sh
 
-      - name: 1. Cài Anka Virtualization CLI (idempotent, dùng Anka Develop free)
+      - name: Run sshx
         run: |
-          if ! command -v anka >/dev/null 2>&1; then
-            FULL_FILE_NAME="$(curl -Ls -r 0-1 -o /dev/null -w %{url_effective} https://veertu.com/downloads/anka-virtualization-latest | cut -d/ -f5)"
-            curl -S -L -o "./$FULL_FILE_NAME" https://veertu.com/downloads/anka-virtualization-latest
-            sudo installer -pkg "./$FULL_FILE_NAME" -tgt /
-          fi
-          anka version
-          sudo anka license accept-eula
-
-      - name: 2. Tải bộ cài macOS Tahoe full installer (nếu chưa có)
-        run: |
-          if [ ! -d "$INSTALLER_APP" ]; then
-            sudo softwareupdate --fetch-full-installer --full-installer-version 15.7.7
-          fi
-          ls -la "$INSTALLER_APP"
-
-      - name: 3. Tạo VM Tahoe (bỏ qua nếu VM đã tồn tại)
-        run: |
-          if ! anka show "$VM_NAME" >/dev/null 2>&1; then
-            anka create --app "$INSTALLER_APP" \
-              --disk-size "${{ inputs.disk_size }}" \
-              --ram-size "${{ inputs.ram_size }}" \
-              --cpu-count "${{ inputs.cpu_count }}" \
-              "$VM_NAME"
-          else
-            echo "VM $VM_NAME đã tồn tại, bỏ qua bước tạo."
-          fi
-
-      - name: 4. Khởi động VM
-        run: anka start "$VM_NAME"
-
-      - name: 5. Chờ VM lấy IP
-        id: vm_net
-        run: |
-          IP=""
-          for i in $(seq 1 30); do
-            IP=$(anka show "$VM_NAME" network 2>/dev/null | awk '/ip/ {print $4}')
-            if [ -n "$IP" ]; then
-              echo "vm_ip=$IP" >> "$GITHUB_OUTPUT"
-              break
-            fi
-            sleep 10
-          done
-          if [ -z "$IP" ]; then
-            echo "::error::Không lấy được IP của VM sau 5 phút"
-            exit 1
-          fi
-
-      - name: 6. Bật legacy VNC password cho VM
-        run: |
-          anka run "$VM_NAME" sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -activate -configure -access -on \
-            -clientopts -setvnclegacy -vnclegacy yes \
-            -clientopts -setvncpw -vncpw "$VNC_PW" \
-            -restart -agent -privs -all
-
-      - name: 7. Cài bore CLI (jkuri/bore) từ prebuilt binary
-        run: |
-          if ! command -v bore >/dev/null 2>&1; then
-            curl -L -o /tmp/bore https://github.com/jkuri/bore/releases/download/v0.5.0/bore_darwin_amd64
-            chmod +x /tmp/bore
-            xattr -d com.apple.quarantine /tmp/bore 2>/dev/null || true
-            sudo mv /tmp/bore /usr/local/bin/bore
-          fi
-
-      - name: 8. Forward cổng VNC (5900) của VM qua bore.digital
-        run: |
-          nohup bore -s bore.digital -p 2200 \
-            -ls "${{ steps.vm_net.outputs.vm_ip }}" -lp 5900 \
-            > bore.log 2>&1 &
-          disown
-          sleep 6
-          cat bore.log
-          grep "Direct TCP" bore.log >> "$GITHUB_STEP_SUMMARY" || true
-
-      - name: 9. In thông tin kết nối
-        run: |
-          echo "VM IP nội bộ: ${{ steps.vm_net.outputs.vm_ip }}"
-          echo "Mật khẩu VNC: $VNC_PW"
+          sshx
