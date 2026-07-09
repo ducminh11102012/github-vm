@@ -5,7 +5,7 @@ on:
 
 jobs:
   sshx:
-    runs-on: macos-26
+    runs-on: ["ghcr.io/cirruslabs/macos-runner:tahoe", "low-priority"]
 
     steps:
       - name: Install sshx
